@@ -16,12 +16,14 @@ configurations:
       value: "jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=dev"
     - name: SPRING_DATASOURCE_USERNAME
       value: "claims"
-    - name: SPRING_DATASOURCE_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: claims-db-secret-dev
-          key: db-password
     - name: SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA
       value: "dev"
     - name: SPRING_JPA_HIBERNATE_DDL_AUTO
       value: "update"
+  files:
+    - key: db-password
+      mountPath: /secrets/db-password
+      valueFrom:
+        secretKeyRef:
+          name: claims-db-secret-dev
+          key: db-password
