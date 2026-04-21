@@ -65,7 +65,7 @@ public class DataSourceConfig {
                     if (changed) {
                         String newPassword = readPassword();
                         ds.getHikariConfigMXBean().setPassword(newPassword);
-                        ds.softEvictConnections();
+                        ds.getHikariPoolMXBean().softEvictConnections();
                         log.info("Password rotated — connections soft-evicted");
                     }
                     key.reset();
