@@ -1,0 +1,2 @@
+CREATE USER claims WITH PASSWORD 'claims123';
+CREATE DATABASE claimsdb OWNER claims;

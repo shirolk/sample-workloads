@@ -1,0 +1,18 @@
+apiVersion: openchoreo.dev/v1alpha1
+
+metadata:
+  name: claims-postgres
+
+endpoints:
+  - name: postgres
+    port: 5432
+    type: TCP
+
+configurations:
+  env:
+    - name: POSTGRES_USER
+      value: "claims"
+    - name: POSTGRES_PASSWORD
+      value: "claims123"
+    - name: POSTGRES_DB
+      value: "claimsdb"
