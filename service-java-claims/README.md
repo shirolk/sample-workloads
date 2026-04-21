@@ -36,11 +36,39 @@ curl -X PATCH "http://localhost:8080/claims/1/status?status=APPROVED"
 | `SPRING_DATASOURCE_PASSWORD` | Database password | *(from secret)* |
 | `SERVER_PORT` | HTTP port | `8080` |
 
+## Local Development
+
+Copy `.env.example` to `.env` and set your local DB password:
+
+```bash
+cp .env.example .env
+# edit .env and set DB_PASSWORD
+```
+
+Then start the app and Postgres together:
+
+```bash
+docker compose up --build
+```
+
+The `.env` file is git-ignored and never committed.
+
 ## Deploying on OpenChoreo
 
-### 1. Create the SecretReference
+### 1. Store the secret in OpenBao
 
-Create a `SecretReference` CR that maps the DB password to your secret store:
+Add the database password to OpenBao:
+
+```bash
+kubectl exec -n openbao openbao-0 -- sh -c '
+  export BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=root
+  bao kv put secret/claims/db-password value=claims123
+'
+```
+
+### 2. Create the SecretReference
+
+Create a `SecretReference` CR that maps the OpenBao path to a secret key:
 
 ```yaml
 apiVersion: openchoreo.dev/v1alpha1
@@ -57,6 +85,6 @@ spec:
         property: value
 ```
 
-### 2. Deploy the component
+### 3. Deploy the component
 
-The `workload.yaml` references `claims-db-secret` for the DB password. OpenChoreo injects it as `SPRING_DATASOURCE_PASSWORD` at runtime — the password never appears in source code or config files.
+The `workload.yaml` references `claims-db-secret` for the DB password. OpenChoreo fetches the password from OpenBao and injects it as `SPRING_DATASOURCE_PASSWORD` at runtime — the password never appears in source code or config files.
