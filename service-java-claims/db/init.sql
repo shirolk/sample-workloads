@@ -1,1 +1,4 @@
 -- User and database are created automatically via POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB env vars
+CREATE SCHEMA IF NOT EXISTS dev;
+CREATE SCHEMA IF NOT EXISTS staging;
+CREATE SCHEMA IF NOT EXISTS prod;

@@ -1,6 +1,6 @@
 # Insurance Claims Tracker — Spring Boot Service
 
-A simple REST API for managing insurance claims, backed by PostgreSQL. Demonstrates OpenChoreo secret references for database credentials.
+A simple REST API for managing insurance claims, backed by PostgreSQL. Demonstrates OpenChoreo secret references for database credentials and multi-environment promotion using PostgreSQL schemas.
 
 ## API
 
@@ -9,6 +9,7 @@ A simple REST API for managing insurance claims, backed by PostgreSQL. Demonstra
 | GET | /claims | List all claims |
 | GET | /claims/{id} | Get a claim by ID |
 | POST | /claims | Submit a new claim |
+| PUT | /claims/{id} | Update a claim |
 | PATCH | /claims/{id}/status?status= | Update claim status (`PENDING`, `APPROVED`, `REJECTED`) |
 | DELETE | /claims/{id} | Delete a claim |
 
@@ -23,17 +24,24 @@ curl -X POST http://localhost:8080/claims \
 # List all claims
 curl http://localhost:8080/claims
 
+# Update a claim
+curl -X PUT http://localhost:8080/claims/1 \
+  -H "Content-Type: application/json" \
+  -d '{"policyNumber":"POL-001","claimantName":"Jane Doe","description":"Updated description","amount":3000.00}'
+
 # Approve a claim
 curl -X PATCH "http://localhost:8080/claims/1/status?status=APPROVED"
 ```
 
 ## Configuration
 
-| Env Var | Description | Default |
-|---------|-------------|---------|
-| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL | `jdbc:postgresql://localhost:5432/claimsdb` |
+| Env Var | Description | Default (dev) |
+|---------|-------------|---------------|
+| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL with schema | `jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=dev` |
 | `SPRING_DATASOURCE_USERNAME` | Database user | `claims` |
 | `SPRING_DATASOURCE_PASSWORD` | Database password | *(from secret)* |
+| `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` | Active schema | `dev` |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | Schema auto-creation | `update` |
 | `SERVER_PORT` | HTTP port | `8080` |
 
 ## Local Development
@@ -53,38 +61,104 @@ docker compose up --build
 
 The `.env` file is git-ignored and never committed.
 
+## Project Structure
+
+```
+service-java-claims/
+  src/                  Spring Boot application source
+  db/                   PostgreSQL component (init.sql creates dev/staging/prod schemas)
+  webapp/               Nginx-based UI for managing claims
+  workload.yaml         OpenChoreo runtime descriptor (dev defaults)
+  Dockerfile            Multi-stage build
+```
+
 ## Deploying on OpenChoreo
 
-### 1. Store the secret in OpenBao
+This sample uses three PostgreSQL schemas (`dev`, `staging`, `prod`) within a single database to demonstrate environment promotion. Each environment uses its own schema and its own secret.
 
-Add the database password to OpenBao:
+### 1. Store secrets in OpenBao
+
+One secret per environment:
 
 ```bash
 kubectl exec -n openbao openbao-0 -- sh -c '
   export BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=root
-  bao kv put secret/claims/db-password value=claims123
+  bao kv put secret/claims/dev/db-password value=claims123
+  bao kv put secret/claims/staging/db-password value=<staging-password>
+  bao kv put secret/claims/prod/db-password value=<prod-password>
 '
 ```
 
-### 2. Create the SecretReference
+### 2. Create SecretReferences
 
-Create a `SecretReference` CR that maps the OpenBao path to a secret key:
+One `SecretReference` per environment:
 
-```yaml
+```bash
+kubectl apply -f - <<'EOF'
 apiVersion: openchoreo.dev/v1alpha1
 kind: SecretReference
 metadata:
-  name: claims-db-secret
+  name: claims-db-secret-dev
+  namespace: default
 spec:
   template:
     type: Opaque
   data:
     - secretKey: db-password
       remoteRef:
-        key: secret/claims/db-password
+        key: secret/claims/dev/db-password
         property: value
+---
+apiVersion: openchoreo.dev/v1alpha1
+kind: SecretReference
+metadata:
+  name: claims-db-secret-staging
+  namespace: default
+spec:
+  template:
+    type: Opaque
+  data:
+    - secretKey: db-password
+      remoteRef:
+        key: secret/claims/staging/db-password
+        property: value
+---
+apiVersion: openchoreo.dev/v1alpha1
+kind: SecretReference
+metadata:
+  name: claims-db-secret-prod
+  namespace: default
+spec:
+  template:
+    type: Opaque
+  data:
+    - secretKey: db-password
+      remoteRef:
+        key: secret/claims/prod/db-password
+        property: value
+EOF
 ```
 
-### 3. Deploy the component
+### 3. Create and deploy the components
 
-The `workload.yaml` references `claims-db-secret` for the DB password. OpenChoreo fetches the password from OpenBao and injects it as `SPRING_DATASOURCE_PASSWORD` at runtime — the password never appears in source code or config files.
+Create three components in the same OpenChoreo project:
+
+| Component | App Path | Description |
+|-----------|----------|-------------|
+| `claims-postgres` | `./service-java-claims/db` | PostgreSQL with dev/staging/prod schemas |
+| `my-claims-app` | `./service-java-claims` | Spring Boot REST API |
+| `claims-webapp` | `./service-java-claims/webapp` | Nginx UI |
+
+Deploy `claims-postgres` first so the schemas exist before the app starts.
+
+### 4. Promoting to staging or production
+
+When promoting `my-claims-app` through the OpenChoreo UI, override these env vars at the **Configure and Deploy** step:
+
+| Env Var | Staging value | Production value |
+|---------|---------------|------------------|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=staging` | `jdbc:postgresql://<external-db>:5432/claimsdb?currentSchema=prod` |
+| `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` | `staging` | `prod` |
+| `SPRING_DATASOURCE_PASSWORD` (secretKeyRef name) | `claims-db-secret-staging` | `claims-db-secret-prod` |
+
+The overrides are saved on the ReleaseBinding and persist across future promotions — you only need to set them once per environment.
