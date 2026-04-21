@@ -1,0 +1,11 @@
+apiVersion: openchoreo.dev/v1alpha1
+
+metadata:
+  name: claims-webapp
+
+endpoints:
+  - name: webapp
+    port: 80
+    type: HTTP
+    visibility:
+      - external
