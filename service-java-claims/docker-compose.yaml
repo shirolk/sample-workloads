@@ -1,0 +1,29 @@
+# For local development only.
+# When deploying on OpenChoreo, the database password is never stored in plain text —
+# it is injected at runtime via a SecretReference defined in workload.yaml.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: claimsdb
+      POSTGRES_USER: claims
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claims -d claimsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  claims-service:
+    build: .
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/claimsdb
+      SPRING_DATASOURCE_USERNAME: claims
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy

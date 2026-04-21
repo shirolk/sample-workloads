@@ -1,0 +1,23 @@
+apiVersion: openchoreo.dev/v1alpha1
+
+metadata:
+  name: claims-service
+
+endpoints:
+  - name: claims-api
+    port: 8080
+    type: HTTP
+    visibility:
+      - external
+
+configurations:
+  env:
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://claims-postgres:5432/claimsdb"
+    - name: SPRING_DATASOURCE_USERNAME
+      value: "claims"
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: claims-db-secret
+          key: db-password
