@@ -13,6 +13,9 @@ configurations:
     - name: POSTGRES_USER
       value: "claims"
     - name: POSTGRES_PASSWORD
-      value: "claims123"
+      valueFrom:
+        secretKeyRef:
+          name: claims-db-secret-dev
+          key: db-password
     - name: POSTGRES_DB
       value: "claimsdb"
