@@ -155,14 +155,14 @@ Create three components in the same OpenChoreo project:
 | Component | App Path | Description |
 |-----------|----------|-------------|
 | `claims-postgres` | `./service-java-claims/db` | PostgreSQL with dev/staging/prod schemas |
-| `my-claims-app` | `./service-java-claims` | Spring Boot REST API |
+| `claims-service` | `./service-java-claims` | Spring Boot REST API |
 | `claims-webapp` | `./service-java-claims/webapp` | Nginx UI |
 
-Always deploy in this order: `claims-postgres` → `my-claims-app` → `claims-webapp`. The DB must be up and schemas created before the app starts, and the app must be up before the webapp can proxy to it.
+Always deploy in this order: `claims-postgres` → `claims-service` → `claims-webapp`. The DB must be up and schemas created before the app starts, and the app must be up before the webapp can proxy to it.
 
 ### 4. Promoting to staging or production
 
-Both `claims-postgres` and `my-claims-app` use the same secret for the database password — this guarantees they always stay in sync across environments.
+Both `claims-postgres` and `claims-service` use the same secret for the database password — this guarantees they always stay in sync across environments.
 
 When promoting each component through the OpenChoreo UI, set these overrides at the **Configure and Deploy** step:
 
@@ -172,7 +172,7 @@ When promoting each component through the OpenChoreo UI, set these overrides at 
 |---------|---------------|------------------|
 | `POSTGRES_PASSWORD` (secretKeyRef name) | `claims-db-secret-staging` | `claims-db-secret-prod` |
 
-#### `my-claims-app`
+#### `claims-service`
 
 | Override | Staging value | Production value |
 |----------|---------------|------------------|
@@ -182,6 +182,6 @@ When promoting each component through the OpenChoreo UI, set these overrides at 
 
 #### `claims-webapp`
 
-No overrides needed — Nginx proxies to `my-claims-app` by service name, which resolves correctly within the same project in any environment.
+No overrides needed — Nginx proxies to `claims-service` by service name, which resolves correctly within the same project in any environment.
 
 The overrides are saved on the ReleaseBinding and persist across future promotions — you only need to set them once per environment.
