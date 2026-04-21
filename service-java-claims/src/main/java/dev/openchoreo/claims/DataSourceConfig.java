@@ -12,6 +12,8 @@ import org.springframework.context.annotation.Primary;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.nio.file.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 
 @Configuration
 public class DataSourceConfig {
@@ -64,9 +66,10 @@ public class DataSourceConfig {
                     });
                     if (changed) {
                         String newPassword = readPassword();
+                        rotatePostgresPassword(ds, newPassword);
                         ds.getHikariConfigMXBean().setPassword(newPassword);
                         ds.getHikariPoolMXBean().softEvictConnections();
-                        log.info("Password rotated — connections soft-evicted");
+                        log.info("Password rotated — postgres user updated, connections soft-evicted");
                     }
                     key.reset();
                 }
@@ -76,5 +79,17 @@ public class DataSourceConfig {
         }, "password-watcher");
         watcher.setDaemon(true);
         watcher.start();
+    }
+
+    private void rotatePostgresPassword(HikariDataSource ds, String newPassword) {
+        // Use existing pool (old password still valid) to update the postgres user password
+        try (Connection conn = ds.getConnection();
+             PreparedStatement ps = conn.prepareStatement("ALTER USER " + username + " PASSWORD ?")) {
+            ps.setString(1, newPassword);
+            ps.executeUpdate();
+            log.info("ALTER USER {} executed successfully", username);
+        } catch (Exception e) {
+            log.error("Failed to rotate postgres user password: {}", e.getMessage(), e);
+        }
     }
 }
