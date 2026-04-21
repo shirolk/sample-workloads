@@ -1,2 +1,1 @@
-CREATE USER claims WITH PASSWORD 'claims123';
-CREATE DATABASE claimsdb OWNER claims;
+-- User and database are created automatically via POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB env vars
