@@ -21,7 +21,7 @@ configurations:
     - name: SPRING_JPA_HIBERNATE_DDL_AUTO
       value: "update"
   files:
-    - key: db-password
+    - name: db-password
       mountPath: /secrets/db-password
       valueFrom:
         secretKeyRef:
