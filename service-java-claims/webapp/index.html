@@ -139,7 +139,8 @@
 <div id="toast"></div>
 
 <script>
-  const API = '/api/claims';
+  const base = window.location.pathname.replace(/\/[^/]*$/, '');
+  const API = `${base}/api/claims`;
 
   async function loadClaims() {
     const res = await fetch(API);
