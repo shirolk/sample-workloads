@@ -56,6 +56,7 @@
     td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #fafafa; }
+    tr.selected td { background: #eff6ff; }
 
     .badge {
       display: inline-block;
@@ -105,13 +106,16 @@
 
 <main>
   <div class="card">
-    <h2>Submit a New Claim</h2>
+    <h2 id="formTitle">Submit a New Claim</h2>
     <form id="claimForm">
       <input id="policyNumber" placeholder="Policy Number (e.g. POL-001)" required />
       <input id="claimantName" placeholder="Claimant Name" required />
       <input id="amount" type="number" step="0.01" min="0" placeholder="Amount ($)" required />
       <textarea id="description" rows="2" placeholder="Description of claim"></textarea>
-      <button type="submit">Submit Claim</button>
+      <div style="display:flex;gap:0.5rem">
+        <button type="submit" id="submitBtn" style="flex:1">Submit Claim</button>
+        <button type="button" id="cancelBtn" style="display:none;flex:0 0 auto;background:#f3f4f6;color:#374151;border:none;border-radius:6px;padding:0.6rem 1rem;font-size:0.875rem;cursor:pointer;font-weight:500" onclick="resetForm()">Cancel</button>
+      </div>
     </form>
   </div>
 
@@ -140,6 +144,7 @@
 
 <script>
   const API = window.location.pathname.replace(/\/$/, '') + '/api/claims';
+  let editingId = null;
 
   async function loadClaims() {
     const res = await fetch(API);
@@ -150,14 +155,14 @@
       return;
     }
     tbody.innerHTML = claims.map(c => `
-      <tr>
+      <tr onclick="selectClaim(${c.id})" style="cursor:pointer" id="row-${c.id}">
         <td>${c.id}</td>
         <td>${c.policyNumber}</td>
         <td>${c.claimantName}</td>
         <td>${c.description || '—'}</td>
         <td>$${Number(c.amount).toFixed(2)}</td>
         <td><span class="badge ${c.status}">${c.status}</span></td>
-        <td class="actions">
+        <td class="actions" onclick="event.stopPropagation()">
           ${c.status === 'PENDING' ? `
             <button class="btn btn-approve" onclick="updateStatus(${c.id},'APPROVED')">Approve</button>
             <button class="btn btn-reject"  onclick="updateStatus(${c.id},'REJECTED')">Reject</button>
@@ -166,11 +171,42 @@
         </td>
       </tr>
     `).join('');
+    if (editingId) {
+      const row = document.getElementById(`row-${editingId}`);
+      if (row) row.classList.add('selected');
+    }
+  }
+
+  async function selectClaim(id) {
+    const res = await fetch(`${API}/${id}`);
+    const c = await res.json();
+    editingId = id;
+    document.getElementById('policyNumber').value = c.policyNumber;
+    document.getElementById('claimantName').value = c.claimantName;
+    document.getElementById('amount').value = c.amount;
+    document.getElementById('description').value = c.description || '';
+    document.getElementById('formTitle').textContent = `Edit Claim #${id}`;
+    document.getElementById('submitBtn').textContent = 'Update Claim';
+    document.getElementById('cancelBtn').style.display = 'block';
+    document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
+    const row = document.getElementById(`row-${id}`);
+    if (row) row.classList.add('selected');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function resetForm() {
+    editingId = null;
+    document.getElementById('claimForm').reset();
+    document.getElementById('formTitle').textContent = 'Submit a New Claim';
+    document.getElementById('submitBtn').textContent = 'Submit Claim';
+    document.getElementById('cancelBtn').style.display = 'none';
+    document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
   }
 
   async function updateStatus(id, status) {
     await fetch(`${API}/${id}/status?status=${status}`, { method: 'PATCH' });
     toast(`Claim #${id} marked ${status}`);
+    if (editingId === id) resetForm();
     loadClaims();
   }
 
@@ -178,6 +214,7 @@
     if (!confirm(`Delete claim #${id}?`)) return;
     await fetch(`${API}/${id}`, { method: 'DELETE' });
     toast(`Claim #${id} deleted`);
+    if (editingId === id) resetForm();
     loadClaims();
   }
 
@@ -189,15 +226,20 @@
       amount: parseFloat(document.getElementById('amount').value),
       description: document.getElementById('description').value,
     };
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      e.target.reset();
-      toast('Claim submitted');
-      loadClaims();
+    if (editingId) {
+      const res = await fetch(`${API}/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) { toast(`Claim #${editingId} updated`); resetForm(); loadClaims(); }
+    } else {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) { e.target.reset(); toast('Claim submitted'); loadClaims(); }
     }
   });
 

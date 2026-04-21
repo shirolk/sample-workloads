@@ -55,6 +55,20 @@ public class ClaimController {
         }
     }
 
+    @PutMapping("/{id}")
+    public Claim update(@PathVariable Long id, @RequestBody Claim updates) {
+        log.debug("Received request to update claim id={}", id);
+        Claim claim = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Claim not found"));
+        claim.setPolicyNumber(updates.getPolicyNumber());
+        claim.setClaimantName(updates.getClaimantName());
+        claim.setDescription(updates.getDescription());
+        claim.setAmount(updates.getAmount());
+        Claim saved = repository.save(claim);
+        log.info("Updated claim id={}", id);
+        return saved;
+    }
+
     @PatchMapping("/{id}/status")
     public Claim updateStatus(@PathVariable Long id, @RequestParam Claim.ClaimStatus status) {
         log.debug("Received request to update status of claim id={} to {}", id, status);
