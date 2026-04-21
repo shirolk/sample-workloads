@@ -35,11 +35,11 @@ curl -X PATCH "http://localhost:8080/claims/1/status?status=APPROVED"
 
 ## Configuration
 
-| Env Var | Description | Default (dev) |
-|---------|-------------|---------------|
+| Env Var / Mount | Description | Default (dev) |
+|-----------------|-------------|---------------|
 | `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL with schema | `jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=dev` |
 | `SPRING_DATASOURCE_USERNAME` | Database user | `claims` |
-| `SPRING_DATASOURCE_PASSWORD` | Database password | *(from secret)* |
+| `DB_PASSWORD_FILE` (file mount) | Path to file containing DB password | `/secrets/db-password` *(from secret)* |
 | `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` | Active schema | `dev` |
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | Schema auto-creation | `update` |
 | `SERVER_PORT` | HTTP port | `8080` |
@@ -71,6 +71,15 @@ service-java-claims/
   workload.yaml         OpenChoreo runtime descriptor (dev defaults)
   Dockerfile            Multi-stage build
 ```
+
+## Zero-Downtime Secret Rotation
+
+The database password is mounted as a file (`/secrets/db-password`) rather than injected as an environment variable. This enables zero-downtime rotation using two standard Java/HikariCP mechanisms:
+
+- **`java.nio.file.WatchService`** — a background daemon thread watches the `/secrets/` directory for file changes. When OpenChoreo's External Secrets Operator syncs a new value from OpenBao, the mounted file updates on disk and triggers the watcher.
+- **`HikariPoolMXBean.softEvictConnections()`** — on a file change event, the new password is applied via `HikariConfigMXBean.setPassword()` and then `softEvictConnections()` is called. This marks existing connections for eviction — they are replaced as they are returned to the pool rather than being forcibly closed — so in-flight requests complete normally with zero interruption.
+
+No Spring Cloud, no pod restart, no application framework magic — just Java NIO and HikariCP's built-in JMX API.
 
 ## Deploying on OpenChoreo
 
@@ -165,11 +174,11 @@ When promoting each component through the OpenChoreo UI, set these overrides at 
 
 #### `my-claims-app`
 
-| Env Var | Staging value | Production value |
-|---------|---------------|------------------|
-| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=staging` | `jdbc:postgresql://<external-db>:5432/claimsdb?currentSchema=prod` |
-| `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` | `staging` | `prod` |
-| `SPRING_DATASOURCE_PASSWORD` (secretKeyRef name) | `claims-db-secret-staging` | `claims-db-secret-prod` |
+| Override | Staging value | Production value |
+|----------|---------------|------------------|
+| `SPRING_DATASOURCE_URL` (env) | `jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=staging` | `jdbc:postgresql://<external-db>:5432/claimsdb?currentSchema=prod` |
+| `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` (env) | `staging` | `prod` |
+| `db-password` file mount (secretKeyRef name) | `claims-db-secret-staging` | `claims-db-secret-prod` |
 
 #### `claims-webapp`
 
