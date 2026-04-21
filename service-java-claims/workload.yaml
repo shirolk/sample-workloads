@@ -22,7 +22,7 @@ configurations:
       value: "update"
   files:
     - name: db-password
-      mountPath: /secrets/db-password
+      mountPath: /secrets
       valueFrom:
         secretKeyRef:
           name: claims-db-secret-dev
