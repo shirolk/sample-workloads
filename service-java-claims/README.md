@@ -84,8 +84,8 @@ One secret per environment:
 kubectl exec -n openbao openbao-0 -- sh -c '
   export BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=root
   bao kv put secret/claims/dev/db-password value=claims123
-  bao kv put secret/claims/staging/db-password value=<staging-password>
-  bao kv put secret/claims/prod/db-password value=<prod-password>
+  bao kv put secret/claims/staging/db-password value=claims456
+  bao kv put secret/claims/prod/db-password value=claims789
 '
 ```
 
@@ -149,16 +149,30 @@ Create three components in the same OpenChoreo project:
 | `my-claims-app` | `./service-java-claims` | Spring Boot REST API |
 | `claims-webapp` | `./service-java-claims/webapp` | Nginx UI |
 
-Deploy `claims-postgres` first so the schemas exist before the app starts.
+Always deploy in this order: `claims-postgres` → `my-claims-app` → `claims-webapp`. The DB must be up and schemas created before the app starts, and the app must be up before the webapp can proxy to it.
 
 ### 4. Promoting to staging or production
 
-When promoting `my-claims-app` through the OpenChoreo UI, override these env vars at the **Configure and Deploy** step:
+Both `claims-postgres` and `my-claims-app` use the same secret for the database password — this guarantees they always stay in sync across environments.
+
+When promoting each component through the OpenChoreo UI, set these overrides at the **Configure and Deploy** step:
+
+#### `claims-postgres`
+
+| Env Var | Staging value | Production value |
+|---------|---------------|------------------|
+| `POSTGRES_PASSWORD` (secretKeyRef name) | `claims-db-secret-staging` | `claims-db-secret-prod` |
+
+#### `my-claims-app`
 
 | Env Var | Staging value | Production value |
 |---------|---------------|------------------|
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://claims-postgres:5432/claimsdb?currentSchema=staging` | `jdbc:postgresql://<external-db>:5432/claimsdb?currentSchema=prod` |
 | `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` | `staging` | `prod` |
 | `SPRING_DATASOURCE_PASSWORD` (secretKeyRef name) | `claims-db-secret-staging` | `claims-db-secret-prod` |
+
+#### `claims-webapp`
+
+No overrides needed — Nginx proxies to `my-claims-app` by service name, which resolves correctly within the same project in any environment.
 
 The overrides are saved on the ReleaseBinding and persist across future promotions — you only need to set them once per environment.
