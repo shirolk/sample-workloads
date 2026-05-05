@@ -1,0 +1,12 @@
+apiVersion: openchoreo.dev/v1alpha1
+
+metadata:
+  name: go-greeter-verbose-service
+
+endpoints:
+  - name: greeter-verbose-api
+    visibility:
+      - external
+    port: 9090
+    type: HTTP
+    schemaFile: openapi.yaml

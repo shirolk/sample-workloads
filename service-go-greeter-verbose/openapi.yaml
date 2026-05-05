@@ -1,0 +1,58 @@
+openapi: "3.0.0"
+info:
+  title: Greeter Verbose API
+  version: "1.0.0"
+  description: A greeter service that emits structured logs at multiple levels.
+paths:
+  /greeter/greet:
+    get:
+      summary: Greet by name
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Name to greet (defaults to "Stranger")
+        - in: query
+          name: lang
+          schema:
+            type: string
+            enum: [en, es, fr, de, jp]
+          description: Language code for the greeting
+      responses:
+        "200":
+          description: Greeting message
+          content:
+            text/plain:
+              schema:
+                type: string
+        "400":
+          description: Unsupported language
+  /greeter/random:
+    get:
+      summary: Return a random greeting
+      responses:
+        "200":
+          description: Random greeting
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  greeting:
+                    type: string
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service health and request count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  requests:
+                    type: integer
